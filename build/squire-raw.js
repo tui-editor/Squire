@@ -1676,9 +1676,12 @@ var keyHandlers = {
             while ( parent = node.parentNode ) {
                 // If we find a UL or OL (so are in a list, node must be an LI)
                 if ( parent.nodeName === 'UL' || parent.nodeName === 'OL' ) {
-                    // Then increase the list level
-                    event.preventDefault();
-                    self.modifyBlocks( increaseListLevel, range );
+                    // AND the LI is not the first in the list
+                    if ( node.previousSibling ) {
+                        // Then increase the list level
+                        event.preventDefault();
+                        self.modifyBlocks( increaseListLevel, range );
+                    }
                     break;
                 }
                 node = parent;
@@ -3832,9 +3835,9 @@ var makeList = function ( self, frag, type ) {
             }
 
             // Have we replaced the previous block with a new <ul>/<ol>?
-            if ( ( prev = node.previousSibling ) && prev.nodeName === type ) {
+            if ( ( prev = node.previousSibling ) &&
+                    prev.nodeName === type ) {
                 prev.appendChild( newLi );
-                detach( node );
             }
             // Otherwise, replace this block with the <ul>/<ol>
             else {
@@ -3845,8 +3848,7 @@ var makeList = function ( self, frag, type ) {
                     ])
                 );
             }
-            newLi.appendChild( empty( node ) );
-            walker.currentNode = newLi;
+            newLi.appendChild( node );
         } else {
             node = node.parentNode;
             tag = node.nodeName;
@@ -3871,26 +3873,18 @@ var makeOrderedList = function ( frag ) {
 
 var removeList = function ( frag ) {
     var lists = frag.querySelectorAll( 'UL, OL' ),
-        items =  frag.querySelectorAll( 'LI' ),
-        root = this._root,
-        i, l, list, listFrag, item;
+        i, l, ll, list, listFrag, children, child;
     for ( i = 0, l = lists.length; i < l; i += 1 ) {
         list = lists[i];
         listFrag = empty( list );
-        fixContainer( listFrag, root );
-        replaceWith( list, listFrag );
-    }
-
-    for ( i = 0, l = items.length; i < l; i += 1 ) {
-        item = items[i];
-        if ( isBlock( item ) ) {
-            replaceWith( item,
-                this.createDefaultBlock([ empty( item ) ])
-            );
-        } else {
-            fixContainer( item, root );
-            replaceWith( item, empty( item ) );
+        children = listFrag.childNodes;
+        ll = children.length;
+        while ( ll-- ) {
+            child = children[ll];
+            replaceWith( child, empty( child ) );
         }
+        fixContainer( listFrag, this._root );
+        replaceWith( list, listFrag );
     }
     return frag;
 };
@@ -3900,6 +3894,7 @@ var increaseListLevel = function ( frag ) {
         i, l, item,
         type, newParent,
         tagAttributes = this._config.tagAttributes,
+        listItemAttrs = tagAttributes.li,
         listAttrs;
     for ( i = 0, l = items.length; i < l; i += 1 ) {
         item = items[i];
@@ -3910,11 +3905,11 @@ var increaseListLevel = function ( frag ) {
             if ( !newParent || !( newParent = newParent.lastChild ) ||
                     newParent.nodeName !== type ) {
                 listAttrs = tagAttributes[ type.toLowerCase() ];
-                newParent = this.createElement( type, listAttrs );
-
                 replaceWith(
                     item,
-                    newParent
+                    this.createElement( 'LI', listItemAttrs, [
+                        newParent = this.createElement( type, listAttrs )
+                    ])
                 );
             }
             newParent.appendChild( item );
@@ -3937,23 +3932,13 @@ var decreaseListLevel = function ( frag ) {
         if ( item.previousSibling ) {
             parent = split( parent, item, newParent, root );
         }
-
-        // if the new parent is another list then we simply move the node
-        // e.g. `ul > ul > li` becomes `ul > li`
-        if ( /^[OU]L$/.test( newParent.nodeName ) ) {
-            newParent.insertBefore( item, parent );
-            if ( !parent.firstChild ) {
-                newParent.removeChild( parent );
+        while ( node ) {
+            next = node.nextSibling;
+            if ( isContainer( node ) ) {
+                break;
             }
-        } else {
-            while ( node ) {
-                next = node.nextSibling;
-                if ( isContainer( node ) ) {
-                    break;
-                }
-                newParent.insertBefore( node, parent );
-                node = next;
-            }
+            newParent.insertBefore( node, parent );
+            node = next;
         }
         if ( newParent.nodeName === 'LI' && first.previousSibling ) {
             split( newParent, first, newParent.parentNode, root );
@@ -4203,6 +4188,14 @@ proto.insertHTML = function ( html, isPaste ) {
         }
         // Parse HTML into DOM tree
         div = this.createElement( 'DIV' );
+        // wrap with tr if html contains dangling td tags
+        if (html.match(/<\/td>((?!<\/tr>)[\s\S])*$/i)) {
+            html = '<TR>' + html + '</TR>';
+        }
+        // wrap with table if html contains dangling tr tags
+        if (html.match(/<\/tr>((?!<\/table>)[\s\S])*$/i)) {
+            html = '<TABLE>' + html + '</TABLE>';
+        } 
         div.innerHTML = html;
         frag = doc.createDocumentFragment();
         frag.appendChild( empty( div ) );

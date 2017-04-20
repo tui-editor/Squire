@@ -1378,9 +1378,9 @@ var makeList = function ( self, frag, type ) {
             }
 
             // Have we replaced the previous block with a new <ul>/<ol>?
-            if ( ( prev = node.previousSibling ) && prev.nodeName === type ) {
+            if ( ( prev = node.previousSibling ) &&
+                    prev.nodeName === type ) {
                 prev.appendChild( newLi );
-                detach( node );
             }
             // Otherwise, replace this block with the <ul>/<ol>
             else {
@@ -1391,8 +1391,7 @@ var makeList = function ( self, frag, type ) {
                     ])
                 );
             }
-            newLi.appendChild( empty( node ) );
-            walker.currentNode = newLi;
+            newLi.appendChild( node );
         } else {
             node = node.parentNode;
             tag = node.nodeName;
@@ -1418,25 +1417,17 @@ var makeOrderedList = function ( frag ) {
 var removeList = function ( frag ) {
     var lists = frag.querySelectorAll( 'UL, OL' ),
         items =  frag.querySelectorAll( 'LI' ),
-        root = this._root,
         i, l, list, listFrag, item;
     for ( i = 0, l = lists.length; i < l; i += 1 ) {
         list = lists[i];
         listFrag = empty( list );
-        fixContainer( listFrag, root );
+        fixContainer( listFrag, this._root );
         replaceWith( list, listFrag );
     }
 
     for ( i = 0, l = items.length; i < l; i += 1 ) {
         item = items[i];
-        if ( isBlock( item ) ) {
-            replaceWith( item,
-                this.createDefaultBlock([ empty( item ) ])
-            );
-        } else {
-            fixContainer( item, root );
-            replaceWith( item, empty( item ) );
-        }
+        replaceWith( item, empty( item ) );
     }
     return frag;
 };
